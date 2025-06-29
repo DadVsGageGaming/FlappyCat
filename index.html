@@ -3,185 +3,412 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Cat with Dogs (Wider & Bigger)</title>
+<title>Flappy Cat Adventure</title>
 <style>
   html, body {
-    margin: 0; padding: 0; overflow: hidden;
-    background: linear-gradient(to bottom, #87ceeb 0%, #fff 100%);
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
+    margin:0; padding:0; overflow:hidden;
+    background: #fbeec1;
     font-family: Arial, sans-serif;
   }
   canvas {
-    display: block;
-    margin: 0 auto;
+    display:block;
+    background-image: url('https://i.imgur.com/oP8s9Ow.jpg');
+    background-size: cover;
     touch-action: manipulation;
+  }
+  #startScreen {
+    position: absolute;
+    width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  #startScreen button {
+    font-size: 24px;
+    padding: 12px 30px;
+    margin-top: 20px;
+    cursor: pointer;
   }
 </style>
 </head>
 <body>
+
+<div id="startScreen">
+  <h1>Flappy Cat Adventure</h1>
+  <p>Tap or press space to flap. Collect coins & toys!</p>
+  <button onclick="startGame()">Start Game</button>
+</div>
+
 <canvas id="gameCanvas"></canvas>
+
 <script>
-(() => {
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+resize();
+window.addEventListener('resize', resize);
 
-  function resize() {
-    canvas.width = window.innerWidth || 800;
-    canvas.height = window.innerHeight || 600;
+function resize(){
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+
+// Game Variables
+let catX = 80, catY;
+const catSize = 90;
+let catVel = 0;
+const gravity = 0.5;
+const flapPower = -9;
+
+let pipes = [];
+let coins = [];
+let toys = [];
+let slobberBalls = [];
+let barks = [];
+
+let score = 0;
+let highScore = localStorage.getItem('flappyCatHighScore') || 0;
+let level = 1;
+let gameOver = false;
+let started = false;
+
+let pipeSpeed = 3;
+let pipeGap = 200;
+const pipeWidth = 130;
+
+const finalBossHealthMax = 20;
+let finalBossHealth = finalBossHealthMax;
+let finalBossActive = false;
+
+// Images
+const catImg = new Image();
+catImg.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS0IQhVr9DDJCq61QX28zCoiqDrvezBh5ylw&s';
+
+const coinImg = new Image();
+coinImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Gold_coin_icon.png/600px-Gold_coin_icon.png';
+
+const toyImg = new Image();
+toyImg.src = 'https://icons.iconarchive.com/icons/google/noto-emoji-animals-nature/48/22215-dog-face-icon.png'; // dog toy icon
+
+const dogBossImg = new Image();
+dogBossImg.src = 'https://i.imgur.com/5xC7vEj.png'; // Cute dog boss image
+
+const slobberBallImg = new Image();
+slobberBallImg.src = 'https://cdn-icons-png.flaticon.com/512/616/616408.png'; // slobber ball icon
+
+// Cat initial Y
+catY = canvas.height/2 - catSize/2;
+
+// Input
+function flap(){
+  if(gameOver){
+    resetGame();
+  } else {
+    catVel = flapPower;
   }
-  resize();
-  window.addEventListener('resize', resize);
+}
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space') flap();
+});
+canvas.addEventListener('mousedown', flap);
+canvas.addEventListener('touchstart', e=>{
+  e.preventDefault();
+  flap();
+});
 
-  // Game variables
-  const gravity = 0.5;
-  const flapPower = -9;
+// Game functions
+function resetGame(){
+  pipes = [];
+  coins = [];
+  toys = [];
+  slobberBalls = [];
+  barks = [];
+  score = 0;
+  level = 1;
+  pipeSpeed = 3;
+  pipeGap = 200;
+  catY = canvas.height/2 - catSize/2;
+  catVel = 0;
+  gameOver = false;
+  finalBossActive = false;
+  finalBossHealth = finalBossHealthMax;
+  started = true;
+  addPipe();
+  document.getElementById('startScreen').style.display = 'none';
+}
 
-  const pipeWidth = 130;  // wider dog obstacles
-  const pipeGap = 200;
-  const pipeSpeed = 3;
+function addPipe(){
+  let topHeight = Math.random()*(canvas.height - pipeGap - 100) + 50;
+  pipes.push({x: canvas.width, topHeight, passed:false});
+  // 50% chance of a coin between pipes
+  if(Math.random()<0.5){
+    coins.push({x: canvas.width + pipeWidth/2, y: topHeight + pipeGap/2, collected:false});
+  }
+  // 10% chance of toy (special coin) for boss damage but only after lvl 15
+  if(level>=15 && Math.random()<0.1){
+    toys.push({x: canvas.width + pipeWidth/2, y: topHeight + pipeGap/2, collected:false});
+  }
+}
 
-  const catSize = 90;     // bigger cat
-  const catX = 80;
+function addSlobberBall(){
+  if(!finalBossActive) return;
+  slobberBalls.push({
+    x: canvas.width - 160,
+    y: 130 + Math.random()*100,
+    size: 30,
+    speed: 5 + level*0.2
+  });
+}
 
-  let catY = canvas.height / 2 - catSize / 2;
-  let catVelocity = 0;
-  let pipes = [];
+function addBark(){
+  if(!finalBossActive) return;
+  barks.push({
+    x: canvas.width - 160,
+    y: 100 + Math.random()*80,
+    text: 'BARK!',
+    alpha: 1,
+    speed: 1
+  });
+}
 
-  let score = 0;
-  let gameOver = false;
+function update(){
+  if(!started || gameOver) return;
 
-  // Load images
-  const catImg = new Image();
-  catImg.src = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS0IQhVr9DDJCq61QX28zCoiqDrvezBh5ylw&s";
+  catVel += gravity;
+  catY += catVel;
 
-  const dogImgUrls = [
-    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRNZJ_RBD0IDHxbtkzIIksOye4ypSvPMFgXlg&s",
-    "https://static.vecteezy.com/system/resources/thumbnails/018/871/732/small_2x/cute-and-happy-dog-png.png",
-    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS4GA8fjB5zYPwpvr7CUTo1k-WK08iRoAu2mg&s"
-  ];
-  const dogImages = [];
+  // Cat ground/fall check
+  if(catY + catSize > canvas.height || catY < 0){
+    gameOver = true;
+  }
 
-  let loadedImages = 0;
-  function imageLoaded() {
-    loadedImages++;
-    if (loadedImages === dogImgUrls.length + 1) {
-      reset();
-      loop();
+  // Pipes movement & collision
+  for(let i = pipes.length - 1; i >=0; i--){
+    let p = pipes[i];
+    p.x -= pipeSpeed;
+
+    // Check collision
+    if(catX + catSize > p.x && catX < p.x + pipeWidth){
+      if(catY < p.topHeight || catY + catSize > p.topHeight + pipeGap){
+        gameOver = true;
+      }
+    }
+
+    // Passed pipe: increase score & level
+    if(!p.passed && p.x + pipeWidth < catX){
+      score++;
+      p.passed = true;
+      if(score % 10 === 0) levelUp();
+    }
+
+    if(p.x + pipeWidth < 0){
+      pipes.splice(i,1);
     }
   }
 
-  catImg.onload = imageLoaded;
-  dogImgUrls.forEach(url => {
-    const img = new Image();
-    img.src = url;
-    img.onload = imageLoaded;
-    dogImages.push(img);
-  });
-
-  // Input handler
-  function flap() {
-    if (gameOver) reset();
-    else catVelocity = flapPower;
-  }
-  document.addEventListener('keydown', e => {
-    if (e.code === 'Space') flap();
-  });
-  canvas.addEventListener('mousedown', flap);
-  canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
-
-  // Pipes creation with random heights and dog images
-  function addPipe() {
-    const minPipeHeight = 50;
-    const maxPipeHeight = canvas.height - pipeGap - minPipeHeight;
-    const topHeight = Math.random() * (maxPipeHeight - minPipeHeight) + minPipeHeight;
-    const topDog = dogImages[Math.floor(Math.random() * dogImages.length)];
-    const bottomDog = dogImages[Math.floor(Math.random() * dogImages.length)];
-    pipes.push({ x: canvas.width, topHeight, passed: false, topDog, bottomDog });
+  // Coins movement & collection
+  for(let i = coins.length-1; i >=0; i--){
+    let c = coins[i];
+    c.x -= pipeSpeed;
+    if(!c.collected &&
+      catX + catSize > c.x &&
+      catX < c.x + 30 &&
+      catY + catSize > c.y &&
+      catY < c.y + 30){
+      score++;
+      c.collected = true;
+      coins.splice(i,1);
+    }
+    else if(c.x < -40){
+      coins.splice(i,1);
+    }
   }
 
-  function reset() {
-    catY = canvas.height / 2 - catSize / 2;
-    catVelocity = 0;
-    pipes = [];
-    score = 0;
-    gameOver = false;
+  // Toys movement & collection (damage boss)
+  for(let i = toys.length-1; i >=0; i--){
+    let t = toys[i];
+    t.x -= pipeSpeed;
+    if(!t.collected &&
+      catX + catSize > t.x &&
+      catX < t.x + 30 &&
+      catY + catSize > t.y &&
+      catY < t.y + 30){
+      t.collected = true;
+      toys.splice(i,1);
+      if(finalBossActive){
+        finalBossHealth--;
+        if(finalBossHealth <= 0){
+          alert('You defeated the Final Boss! You Win! 🎉');
+          gameOver = true;
+        }
+      }
+    }
+    else if(t.x < -40){
+      toys.splice(i,1);
+    }
+  }
+
+  // Final Boss logic
+  if(level === 10 && !finalBossActive){
+    // Spawn first boss (no health, just a big dog blocking)
+    finalBossActive = 'level10';
+  }
+  if(level === 20 && finalBossActive !== 'final'){
+    // Spawn final boss with health
+    finalBossActive = 'final';
+    finalBossHealth = finalBossHealthMax;
+  }
+
+  if(finalBossActive){
+    // Slobber ball & bark timers
+    if(Math.random() < 0.02) addSlobberBall();
+    if(Math.random() < 0.01) addBark();
+  }
+
+  // Slobber balls move & collide with cat
+  for(let i=slobberBalls.length-1; i>=0; i--){
+    let s = slobberBalls[i];
+    s.x -= s.speed;
+    if(s.x < -50) slobberBalls.splice(i,1);
+    else if(
+      catX + catSize > s.x &&
+      catX < s.x + s.size &&
+      catY + catSize > s.y &&
+      catY < s.y + s.size
+    ){
+      gameOver = true; // hit by slobber ball = game over
+    }
+  }
+
+  // Barks fade & move left
+  for(let i=barks.length-1; i>=0; i--){
+    let b = barks[i];
+    b.x -= b.speed;
+    b.alpha -= 0.02;
+    if(b.alpha <= 0) barks.splice(i,1);
+  }
+
+  // Add pipes as needed
+  if(pipes.length === 0 || pipes[pipes.length-1].x < canvas.width - 300){
     addPipe();
   }
 
-  function drawCat(x, y) {
-    ctx.drawImage(catImg, x, y, catSize, catSize);
+  // Increase difficulty after level 5
+  if(level >= 5){
+    pipeSpeed = 3 + (level - 4)*0.3;
+    pipeGap = 200 - (level - 4)*5;
+    if(pipeGap < 110) pipeGap = 110;
   }
+}
 
-  function drawPipe(pipe) {
-    ctx.drawImage(pipe.topDog, pipe.x, 0, pipeWidth, pipe.topHeight);
-    const bottomY = pipe.topHeight + pipeGap;
-    const bottomHeight = canvas.height - bottomY;
-    ctx.drawImage(pipe.bottomDog, pipe.x, bottomY, pipeWidth, bottomHeight);
-  }
+function levelUp(){
+  level++;
+}
 
-  function update() {
-    if (gameOver) return;
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
 
-    catVelocity += gravity;
-    catY += catVelocity;
+  // Draw pipes (with dog images on pipes)
+  pipes.forEach(p=>{
+    // pipe top
+    ctx.fillStyle = '#654321';
+    ctx.fillRect(p.x, 0, pipeWidth, p.topHeight);
 
-    if (catY + catSize > canvas.height || catY < 0) {
-      gameOver = true;
-    }
+    // pipe bottom
+    ctx.fillRect(p.x, p.topHeight + pipeGap, pipeWidth, canvas.height - (p.topHeight + pipeGap));
 
-    for (let pipe of pipes) {
-      pipe.x -= pipeSpeed;
+    // Draw cute dog image on pipes
+    let dogImg = dogBossImg;
+    ctx.drawImage(dogImg, p.x - 40, p.topHeight - 80, 130, 130);
+    ctx.drawImage(dogImg, p.x - 40, p.topHeight + pipeGap + 10, 130, 130);
+  });
 
-      if (
-        catX + catSize > pipe.x &&
-        catX < pipe.x + pipeWidth &&
-        (catY < pipe.topHeight || catY + catSize > pipe.topHeight + pipeGap)
-      ) {
-        gameOver = true;
-      }
+  // Draw coins
+  coins.forEach(c=>{
+    ctx.drawImage(coinImg, c.x, c.y, 30, 30);
+  });
 
-      if (!pipe.passed && pipe.x + pipeWidth < catX) {
-        score++;
-        pipe.passed = true;
-      }
-    }
+  // Draw toys
+  toys.forEach(t=>{
+    ctx.drawImage(toyImg, t.x, t.y, 30, 30);
+  });
 
-    pipes = pipes.filter(pipe => pipe.x + pipeWidth > 0);
+  // Draw final boss if active
+  if(finalBossActive === 'level10'){
+    ctx.drawImage(dogBossImg, canvas.width - 180, 100, 180, 180);
+  } else if(finalBossActive === 'final'){
+    // Draw boss with health bar
+    ctx.drawImage(dogBossImg, canvas.width - 180, 100, 180, 180);
 
-    if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 300) {
-      addPipe();
-    }
-  }
+    // Health bar background
+    ctx.fillStyle = 'black';
+    ctx.fillRect(canvas.width - 190, 90, 200, 20);
+    // Health bar foreground
+    ctx.fillStyle = 'limegreen';
+    ctx.fillRect(canvas.width - 190, 90, 200 * (finalBossHealth / finalBossHealthMax), 20);
+    // Health text
+    ctx.fillStyle = 'white';
+    ctx.font = '16px Arial';
+    ctx.fillText(`Boss Health: ${finalBossHealth}`, canvas.width - 180, 105);
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    for (let pipe of pipes) {
-      drawPipe(pipe);
-    }
-
-    drawCat(catX, catY);
-
-    ctx.fillStyle = '#000';
-    ctx.font = '36px Arial';
-    ctx.fillText(`Score: ${score}`, 20, 50);
-
-    if (gameOver) {
+    // Draw slobber balls
+    slobberBalls.forEach(s=>{
+      ctx.drawImage(slobberBallImg, s.x, s.y, s.size, s.size);
+    });
+    // Draw barking texts
+    barks.forEach(b=>{
+      ctx.globalAlpha = b.alpha;
       ctx.fillStyle = 'red';
-      ctx.font = '56px Arial';
-      ctx.fillText('Game Over!', canvas.width / 2 - 140, canvas.height / 2);
-      ctx.font = '24px Arial';
-      ctx.fillText('Tap or Space to restart', canvas.width / 2 - 130, canvas.height / 2 + 50);
-    }
+      ctx.font = '30px Arial';
+      ctx.fillText(b.text, b.x, b.y);
+      ctx.globalAlpha = 1;
+    });
   }
 
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
+  // Draw cat
+  ctx.drawImage(catImg, catX, catY, catSize, catSize);
+
+  // Draw score and level and high score
+  ctx.fillStyle = 'black';
+  ctx.font = '28px Arial';
+  ctx.fillText(`Score: ${score}`, 20, 40);
+  ctx.fillText(`Level: ${level}`, 20, 75);
+  ctx.fillText(`High Score: ${highScore}`, 20, 110);
+
+  // Game over text
+  if(gameOver){
+    ctx.fillStyle = 'red';
+    ctx.font = '50px Arial';
+    ctx.fillText('Game Over!', canvas.width/2 - 130, canvas.height/2);
+    ctx.font = '24px Arial';
+    ctx.fillText('Click or press SPACE to restart', canvas.width/2 - 160, canvas.height/2 + 50);
+
+    if(score > highScore){
+      highScore = score;
+      localStorage.setItem('flappyCatHighScore', highScore);
+    }
   }
-})();
+}
+
+function gameLoop(){
+  update();
+  draw();
+  requestAnimationFrame(gameLoop);
+}
 </script>
+
+<script>
+  function startGame(){
+    resetGame();
+    document.getElementById('startScreen').style.display = 'none';
+  }
+</script>
+
+<script>
+  gameLoop();
+</script>
+
 </body>
 </html>
+
