@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Flappy Cat with Dogs</title>
+<title>Flappy Cat with Dogs (Wider & Bigger)</title>
 <style>
   html, body {
     margin: 0; padding: 0; overflow: hidden;
@@ -36,15 +36,17 @@
   // Game variables
   const gravity = 0.5;
   const flapPower = -9;
-  const catSize = 60;
-  const catX = 80;
 
-  let catY = canvas.height / 2;
-  let catVelocity = 0;
-  let pipes = [];
-  const pipeWidth = 80;
+  const pipeWidth = 130;  // wider dog obstacles
   const pipeGap = 200;
   const pipeSpeed = 3;
+
+  const catSize = 90;     // bigger cat
+  const catX = 80;
+
+  let catY = canvas.height / 2 - catSize / 2;
+  let catVelocity = 0;
+  let pipes = [];
 
   let score = 0;
   let gameOver = false;
@@ -60,7 +62,6 @@
   ];
   const dogImages = [];
 
-  // Preload dog images + cat
   let loadedImages = 0;
   function imageLoaded() {
     loadedImages++;
@@ -89,7 +90,7 @@
   canvas.addEventListener('mousedown', flap);
   canvas.addEventListener('touchstart', e => { e.preventDefault(); flap(); }, { passive: false });
 
-  // Create pipes with top pipe height randomized, with random dog images for top/bottom
+  // Pipes creation with random heights and dog images
   function addPipe() {
     const minPipeHeight = 50;
     const maxPipeHeight = canvas.height - pipeGap - minPipeHeight;
@@ -99,9 +100,8 @@
     pipes.push({ x: canvas.width, topHeight, passed: false, topDog, bottomDog });
   }
 
-  // Reset game state
   function reset() {
-    catY = canvas.height / 2;
+    catY = canvas.height / 2 - catSize / 2;
     catVelocity = 0;
     pipes = [];
     score = 0;
@@ -109,12 +109,10 @@
     addPipe();
   }
 
-  // Draw cat sprite
   function drawCat(x, y) {
     ctx.drawImage(catImg, x, y, catSize, catSize);
   }
 
-  // Draw dog pipes
   function drawPipe(pipe) {
     ctx.drawImage(pipe.topDog, pipe.x, 0, pipeWidth, pipe.topHeight);
     const bottomY = pipe.topHeight + pipeGap;
@@ -122,7 +120,6 @@
     ctx.drawImage(pipe.bottomDog, pipe.x, bottomY, pipeWidth, bottomHeight);
   }
 
-  // Update game state
   function update() {
     if (gameOver) return;
 
@@ -136,7 +133,6 @@
     for (let pipe of pipes) {
       pipe.x -= pipeSpeed;
 
-      // Collision detection
       if (
         catX + catSize > pipe.x &&
         catX < pipe.x + pipeWidth &&
@@ -145,35 +141,28 @@
         gameOver = true;
       }
 
-      // Score update
       if (!pipe.passed && pipe.x + pipeWidth < catX) {
         score++;
         pipe.passed = true;
       }
     }
 
-    // Remove offscreen pipes
     pipes = pipes.filter(pipe => pipe.x + pipeWidth > 0);
 
-    // Add new pipes
     if (pipes.length === 0 || pipes[pipes.length - 1].x < canvas.width - 300) {
       addPipe();
     }
   }
 
-  // Draw everything
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw pipes
     for (let pipe of pipes) {
       drawPipe(pipe);
     }
 
-    // Draw cat
     drawCat(catX, catY);
 
-    // Score
     ctx.fillStyle = '#000';
     ctx.font = '36px Arial';
     ctx.fillText(`Score: ${score}`, 20, 50);
@@ -187,7 +176,6 @@
     }
   }
 
-  // Main game loop
   function loop() {
     update();
     draw();
