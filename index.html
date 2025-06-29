@@ -12,7 +12,7 @@
   }
   canvas {
     display:block;
-    background-image: url('https://i.imgur.com/oP8s9Ow.jpg');
+    background-image: url('https://i.imgur.com/SviV5Nu.jpg'); /* cat room background, working */
     background-size: cover;
     touch-action: manipulation;
   }
@@ -83,7 +83,18 @@ let finalBossActive = false;
 
 // Images
 const catImg = new Image();
-catImg.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS0IQhVr9DDJCq61QX28zCoiqDrvezBh5ylw&s';
+catImg.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS0IQhVr9DDJCq61QX28zCoiqDrvezBh5ylw&s'; // your cat
+
+// DOG images (replaced with working direct URLs)
+const dogImgs = [
+  'https://i.imgur.com/t4RYAxG.png',  // cute dog 1
+  'https://i.imgur.com/zfrkV7n.png',  // cute dog 2
+];
+const dogImages = dogImgs.map(src => {
+  const img = new Image();
+  img.src = src;
+  return img;
+});
 
 const coinImg = new Image();
 coinImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Gold_coin_icon.png/600px-Gold_coin_icon.png';
@@ -92,7 +103,7 @@ const toyImg = new Image();
 toyImg.src = 'https://icons.iconarchive.com/icons/google/noto-emoji-animals-nature/48/22215-dog-face-icon.png'; // dog toy icon
 
 const dogBossImg = new Image();
-dogBossImg.src = 'https://i.imgur.com/5xC7vEj.png'; // Cute dog boss image
+dogBossImg.src = 'https://i.imgur.com/8vx59mz.png'; // replaced final boss dog (working direct URL)
 
 const slobberBallImg = new Image();
 slobberBallImg.src = 'https://cdn-icons-png.flaticon.com/512/616/616408.png'; // slobber ball icon
@@ -251,17 +262,14 @@ function update(){
 
   // Final Boss logic
   if(level === 10 && !finalBossActive){
-    // Spawn first boss (no health, just a big dog blocking)
     finalBossActive = 'level10';
   }
   if(level === 20 && finalBossActive !== 'final'){
-    // Spawn final boss with health
     finalBossActive = 'final';
     finalBossHealth = finalBossHealthMax;
   }
 
   if(finalBossActive){
-    // Slobber ball & bark timers
     if(Math.random() < 0.02) addSlobberBall();
     if(Math.random() < 0.01) addBark();
   }
@@ -277,7 +285,7 @@ function update(){
       catY + catSize > s.y &&
       catY < s.y + s.size
     ){
-      gameOver = true; // hit by slobber ball = game over
+      gameOver = true;
     }
   }
 
@@ -309,17 +317,14 @@ function levelUp(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw pipes (with dog images on pipes)
+  // Draw pipes with random dog images on pipes
   pipes.forEach(p=>{
-    // pipe top
     ctx.fillStyle = '#654321';
     ctx.fillRect(p.x, 0, pipeWidth, p.topHeight);
-
-    // pipe bottom
     ctx.fillRect(p.x, p.topHeight + pipeGap, pipeWidth, canvas.height - (p.topHeight + pipeGap));
 
-    // Draw cute dog image on pipes
-    let dogImg = dogBossImg;
+    // Dog images on pipes - randomly choose dog image each frame for variety
+    let dogImg = dogImages[Math.floor(Math.random()*dogImages.length)];
     ctx.drawImage(dogImg, p.x - 40, p.topHeight - 80, 130, 130);
     ctx.drawImage(dogImg, p.x - 40, p.topHeight + pipeGap + 10, 130, 130);
   });
@@ -338,7 +343,6 @@ function draw(){
   if(finalBossActive === 'level10'){
     ctx.drawImage(dogBossImg, canvas.width - 180, 100, 180, 180);
   } else if(finalBossActive === 'final'){
-    // Draw boss with health bar
     ctx.drawImage(dogBossImg, canvas.width - 180, 100, 180, 180);
 
     // Health bar background
@@ -396,19 +400,14 @@ function gameLoop(){
   draw();
   requestAnimationFrame(gameLoop);
 }
-</script>
 
-<script>
-  function startGame(){
-    resetGame();
-    document.getElementById('startScreen').style.display = 'none';
-  }
-</script>
+function startGame(){
+  resetGame();
+  document.getElementById('startScreen').style.display = 'none';
+}
 
-<script>
-  gameLoop();
+gameLoop();
 </script>
 
 </body>
 </html>
-
