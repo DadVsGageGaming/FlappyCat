@@ -12,7 +12,7 @@
   }
   canvas {
     display:block;
-    background-image: url('https://i.imgur.com/SviV5Nu.jpg'); /* cat room background, working */
+    background-image: url('https://i.imgur.com/SviV5Nu.jpg');
     background-size: cover;
     touch-action: manipulation;
   }
@@ -31,11 +31,22 @@
     margin-top: 20px;
     cursor: pointer;
   }
+  #loadingScreen {
+    position: absolute;
+    width: 100vw; height: 100vh;
+    background: black;
+    color: white;
+    font-size: 24px;
+    display: flex; align-items: center; justify-content: center;
+    z-index: 20;
+  }
 </style>
 </head>
 <body>
 
-<div id="startScreen">
+<div id="loadingScreen">Loading images...</div>
+
+<div id="startScreen" style="display:none;">
   <h1>Flappy Cat Adventure</h1>
   <p>Tap or press space to flap. Collect coins & toys!</p>
   <button onclick="startGame()">Start Game</button>
@@ -81,35 +92,59 @@ const finalBossHealthMax = 20;
 let finalBossHealth = finalBossHealthMax;
 let finalBossActive = false;
 
-// Images
+// Images - preload and wait for them
 const catImg = new Image();
-catImg.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS0IQhVr9DDJCq61QX28zCoiqDrvezBh5ylw&s'; // your cat
+catImg.src = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRS0IQhVr9DDJCq61QX28zCoiqDrvezBh5ylw&s';
 
-// DOG images (replaced with working direct URLs)
-const dogImgs = [
+const dogImgsSrc = [
   'https://i.imgur.com/t4RYAxG.png',  // cute dog 1
   'https://i.imgur.com/zfrkV7n.png',  // cute dog 2
 ];
-const dogImages = dogImgs.map(src => {
-  const img = new Image();
-  img.src = src;
-  return img;
-});
+
+const dogImages = [];
+let imagesLoaded = 0;
+const totalImagesToLoad = 6;
 
 const coinImg = new Image();
 coinImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/Gold_coin_icon.png/600px-Gold_coin_icon.png';
 
 const toyImg = new Image();
-toyImg.src = 'https://icons.iconarchive.com/icons/google/noto-emoji-animals-nature/48/22215-dog-face-icon.png'; // dog toy icon
+toyImg.src = 'https://icons.iconarchive.com/icons/google/noto-emoji-animals-nature/48/22215-dog-face-icon.png';
 
 const dogBossImg = new Image();
-dogBossImg.src = 'https://i.imgur.com/8vx59mz.png'; // replaced final boss dog (working direct URL)
+dogBossImg.src = 'https://i.imgur.com/8vx59mz.png';
 
 const slobberBallImg = new Image();
-slobberBallImg.src = 'https://cdn-icons-png.flaticon.com/512/616/616408.png'; // slobber ball icon
+slobberBallImg.src = 'https://cdn-icons-png.flaticon.com/512/616/616408.png';
 
-// Cat initial Y
-catY = canvas.height/2 - catSize/2;
+// Preload function
+function preloadImage(img, callback) {
+  img.onload = () => {
+    imagesLoaded++;
+    if(imagesLoaded === totalImagesToLoad) {
+      document.getElementById('loadingScreen').style.display = 'none';
+      document.getElementById('startScreen').style.display = 'flex';
+      // Set cat start position after images load
+      catY = canvas.height/2 - catSize/2;
+    }
+    if(callback) callback();
+  };
+  img.onerror = () => {
+    console.error('Image failed to load:', img.src);
+  }
+}
+
+preloadImage(catImg);
+dogImgsSrc.forEach(src=>{
+  const img = new Image();
+  img.src = src;
+  dogImages.push(img);
+  preloadImage(img);
+});
+preloadImage(coinImg);
+preloadImage(toyImg);
+preloadImage(dogBossImg);
+preloadImage(slobberBallImg);
 
 // Input
 function flap(){
@@ -152,11 +187,9 @@ function resetGame(){
 function addPipe(){
   let topHeight = Math.random()*(canvas.height - pipeGap - 100) + 50;
   pipes.push({x: canvas.width, topHeight, passed:false});
-  // 50% chance of a coin between pipes
   if(Math.random()<0.5){
     coins.push({x: canvas.width + pipeWidth/2, y: topHeight + pipeGap/2, collected:false});
   }
-  // 10% chance of toy (special coin) for boss damage but only after lvl 15
   if(level>=15 && Math.random()<0.1){
     toys.push({x: canvas.width + pipeWidth/2, y: topHeight + pipeGap/2, collected:false});
   }
@@ -189,24 +222,26 @@ function update(){
   catVel += gravity;
   catY += catVel;
 
-  // Cat ground/fall check
-  if(catY + catSize > canvas.height || catY < 0){
+  // Clamp cat position inside screen so it doesn't vanish
+  if(catY < 0) {
+    catY = 0;
+    catVel = 0;
+  }
+  if(catY + catSize > canvas.height){
+    catY = canvas.height - catSize;
     gameOver = true;
   }
 
-  // Pipes movement & collision
   for(let i = pipes.length - 1; i >=0; i--){
     let p = pipes[i];
     p.x -= pipeSpeed;
 
-    // Check collision
     if(catX + catSize > p.x && catX < p.x + pipeWidth){
       if(catY < p.topHeight || catY + catSize > p.topHeight + pipeGap){
         gameOver = true;
       }
     }
 
-    // Passed pipe: increase score & level
     if(!p.passed && p.x + pipeWidth < catX){
       score++;
       p.passed = true;
@@ -218,7 +253,6 @@ function update(){
     }
   }
 
-  // Coins movement & collection
   for(let i = coins.length-1; i >=0; i--){
     let c = coins[i];
     c.x -= pipeSpeed;
@@ -236,7 +270,6 @@ function update(){
     }
   }
 
-  // Toys movement & collection (damage boss)
   for(let i = toys.length-1; i >=0; i--){
     let t = toys[i];
     t.x -= pipeSpeed;
@@ -260,7 +293,6 @@ function update(){
     }
   }
 
-  // Final Boss logic
   if(level === 10 && !finalBossActive){
     finalBossActive = 'level10';
   }
@@ -274,7 +306,6 @@ function update(){
     if(Math.random() < 0.01) addBark();
   }
 
-  // Slobber balls move & collide with cat
   for(let i=slobberBalls.length-1; i>=0; i--){
     let s = slobberBalls[i];
     s.x -= s.speed;
@@ -289,7 +320,6 @@ function update(){
     }
   }
 
-  // Barks fade & move left
   for(let i=barks.length-1; i>=0; i--){
     let b = barks[i];
     b.x -= b.speed;
@@ -297,12 +327,10 @@ function update(){
     if(b.alpha <= 0) barks.splice(i,1);
   }
 
-  // Add pipes as needed
   if(pipes.length === 0 || pipes[pipes.length-1].x < canvas.width - 300){
     addPipe();
   }
 
-  // Increase difficulty after level 5
   if(level >= 5){
     pipeSpeed = 3 + (level - 4)*0.3;
     pipeGap = 200 - (level - 4)*5;
@@ -317,50 +345,43 @@ function levelUp(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // Draw pipes with random dog images on pipes
   pipes.forEach(p=>{
     ctx.fillStyle = '#654321';
     ctx.fillRect(p.x, 0, pipeWidth, p.topHeight);
     ctx.fillRect(p.x, p.topHeight + pipeGap, pipeWidth, canvas.height - (p.topHeight + pipeGap));
 
-    // Dog images on pipes - randomly choose dog image each frame for variety
     let dogImg = dogImages[Math.floor(Math.random()*dogImages.length)];
     ctx.drawImage(dogImg, p.x - 40, p.topHeight - 80, 130, 130);
     ctx.drawImage(dogImg, p.x - 40, p.topHeight + pipeGap + 10, 130, 130);
   });
 
-  // Draw coins
   coins.forEach(c=>{
     ctx.drawImage(coinImg, c.x, c.y, 30, 30);
   });
 
-  // Draw toys
   toys.forEach(t=>{
     ctx.drawImage(toyImg, t.x, t.y, 30, 30);
   });
 
-  // Draw final boss if active
   if(finalBossActive === 'level10'){
     ctx.drawImage(dogBossImg, canvas.width - 180, 100, 180, 180);
   } else if(finalBossActive === 'final'){
     ctx.drawImage(dogBossImg, canvas.width - 180, 100, 180, 180);
 
-    // Health bar background
     ctx.fillStyle = 'black';
     ctx.fillRect(canvas.width - 190, 90, 200, 20);
-    // Health bar foreground
+
     ctx.fillStyle = 'limegreen';
     ctx.fillRect(canvas.width - 190, 90, 200 * (finalBossHealth / finalBossHealthMax), 20);
-    // Health text
+
     ctx.fillStyle = 'white';
     ctx.font = '16px Arial';
     ctx.fillText(`Boss Health: ${finalBossHealth}`, canvas.width - 180, 105);
 
-    // Draw slobber balls
     slobberBalls.forEach(s=>{
       ctx.drawImage(slobberBallImg, s.x, s.y, s.size, s.size);
     });
-    // Draw barking texts
+
     barks.forEach(b=>{
       ctx.globalAlpha = b.alpha;
       ctx.fillStyle = 'red';
@@ -370,17 +391,14 @@ function draw(){
     });
   }
 
-  // Draw cat
   ctx.drawImage(catImg, catX, catY, catSize, catSize);
 
-  // Draw score and level and high score
   ctx.fillStyle = 'black';
   ctx.font = '28px Arial';
   ctx.fillText(`Score: ${score}`, 20, 40);
   ctx.fillText(`Level: ${level}`, 20, 75);
   ctx.fillText(`High Score: ${highScore}`, 20, 110);
 
-  // Game over text
   if(gameOver){
     ctx.fillStyle = 'red';
     ctx.font = '50px Arial';
